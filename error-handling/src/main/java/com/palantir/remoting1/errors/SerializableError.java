@@ -17,8 +17,12 @@
 package com.palantir.remoting1.errors;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.google.common.base.Function;
+import com.google.common.collect.Lists;
 import java.util.List;
 import javax.annotation.Nullable;
 import org.immutables.value.Value;
@@ -33,6 +37,7 @@ import org.immutables.value.Value;
 @Value.Immutable
 @Value.Style(visibility = Value.Style.ImplementationVisibility.PACKAGE)
 public abstract class SerializableError {
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** A human-readable description of the error. */
     public abstract String getMessage();
@@ -49,7 +54,7 @@ public abstract class SerializableError {
 
     /** An optional representation of the server-side stacktrace of this error. */
     @Nullable
-    public abstract List<StackTraceElement> getStackTrace();
+    public abstract List<String> getStackTrace();
 
     /** Constructs a new error whose error name is the fully-qualified name of the given class. */
     public static SerializableError of(String message, Class<? extends Exception> exceptionClass) {
@@ -71,12 +76,36 @@ public abstract class SerializableError {
      * Constructs a new error whose error name is the fully-qualified name of the given class, and with the given
      * stack trace.
      */
-    public static SerializableError of(
-            String message, Class<? extends Exception> exceptionClass, List<StackTraceElement> stackTrace) {
+    public static SerializableError withCustomStackTrace(
+            String message, Class<? extends Exception> exceptionClass, List<String> stackTrace) {
         return ImmutableSerializableError.builder()
                 .message(message)
                 .errorName(exceptionClass.getName())
                 .stackTrace(stackTrace)
+                .build();
+    }
+
+    /**
+     * Constructs a new error whose error name is the fully-qualified name of the given class, and with the given
+     * stack trace.
+     */
+    public static SerializableError of(
+            String message, Class<? extends Exception> exceptionClass, List<StackTraceElement> stackTrace) {
+        List<String> stackTraceStrings = Lists.transform(stackTrace, new Function<StackTraceElement, String>() {
+            @Nullable
+            @Override
+            public String apply(@Nullable StackTraceElement input) {
+                try {
+                    return MAPPER.writeValueAsString(input);
+                } catch (JsonProcessingException e) {
+                    return "Failed to serialize stacktrace element: " + input;
+                }
+            }
+        });
+        return ImmutableSerializableError.builder()
+                .message(message)
+                .errorName(exceptionClass.getName())
+                .stackTrace(stackTraceStrings)
                 .build();
     }
 }

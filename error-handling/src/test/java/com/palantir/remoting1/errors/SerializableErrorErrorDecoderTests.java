@@ -25,6 +25,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -110,7 +111,7 @@ public final class SerializableErrorErrorDecoderTests {
     }
 
     @Test
-    public void testRemoteExceptionCarriesSerializedError() throws JsonProcessingException {
+    public void testRemoteExceptionCarriesSerializedError() throws IOException {
         Object error = SerializableError.of("msg", IllegalArgumentException.class,
                 Lists.newArrayList(new RuntimeException().getStackTrace()));
         String json = new ObjectMapper().writeValueAsString(error);
@@ -122,8 +123,9 @@ public final class SerializableErrorErrorDecoderTests {
         assertThat(decode.getCause(), is(nullValue()));
         assertThat(decode.getRemoteException().getErrorName(), is(IllegalArgumentException.class.getName()));
         assertThat(decode.getRemoteException().getMessage(), is("msg"));
-        assertThat(decode.getRemoteException().getStackTrace().get(0).getMethodName(),
-                is("testRemoteExceptionCarriesSerializedError"));
+        StackTraceElement stackTraceElement = new ObjectMapper().readValue(
+                decode.getRemoteException().getStackTrace().get(0), StackTraceElement.class);
+        assertThat(stackTraceElement.getMethodName(), is("testRemoteExceptionCarriesSerializedError"));
     }
 
     private static Exception encodeAndDecode(Exception exception) {
